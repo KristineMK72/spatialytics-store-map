@@ -6,6 +6,7 @@ import { loadState, saveState, sampleState, uid } from '@/lib/storage';
 import { geocodeAddress, fetchBuildingFootprint } from '@/lib/geo';
 
 const StoreMapView = dynamic(() => import('@/components/StoreMapView'), { ssr: false });
+const BarcodeScanner = dynamic(() => import('@/components/BarcodeScanner'), { ssr: false });
 
 const TABS = [
   { id: 'stores', label: 'Stores' },
@@ -20,8 +21,8 @@ export default function Home() {
   const [state, setState] = useState(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  const [scannerOpen, setScannerOpen] = useState(false);
 
-  // forms
   const [storeForm, setStoreForm] = useState({
     name: '',
     address: '',
@@ -80,6 +81,12 @@ export default function Home() {
       return next;
     });
   }
+
+  const onBarcodeScanned = useCallback((code) => {
+    setScan((prev) => ({ ...prev, barcode: code }));
+    setScannerOpen(false);
+    setMsg(`Scanned: ${code} — add a name if you want, then Save placement.`);
+  }, []);
 
   async function createStore(e) {
     e.preventDefault();
@@ -236,6 +243,10 @@ export default function Home() {
 
   return (
     <div className="app">
+      {scannerOpen && (
+        <BarcodeScanner onScan={onBarcodeScanned} onClose={() => setScannerOpen(false)} />
+      )}
+
       <aside className="sidebar">
         <div className="brand">
           <h1>Store Map</h1>
@@ -443,7 +454,7 @@ export default function Home() {
               <div>
                 <strong>Walk session</strong>
                 <div className="muted">
-                  Scan or type a product, pick the aisle you’re standing in, save. Repeat down the store.
+                  Pick aisle → scan with camera or type → optional name → save. Repeat down the store.
                 </div>
               </div>
               <span className="badge">{activeStore?.name || 'No store'}</span>
@@ -466,14 +477,22 @@ export default function Home() {
                       </button>
                     ))}
                   </div>
+
+                  <button
+                    type="button"
+                    className="btn btn-scan"
+                    onClick={() => setScannerOpen(true)}
+                  >
+                    📷 Scan barcode with camera
+                  </button>
+
                   <div className="row">
                     <div className="field">
                       <label>Barcode (UPC)</label>
                       <input
                         value={scan.barcode}
                         onChange={(e) => setScan({ ...scan, barcode: e.target.value })}
-                        placeholder="Scan or type"
-                        autoFocus
+                        placeholder="Camera fill or type"
                       />
                     </div>
                     <div className="field">
