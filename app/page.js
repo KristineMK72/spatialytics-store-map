@@ -16,6 +16,15 @@ const TABS = [
   { id: 'map', label: 'Map' },
 ];
 
+const emptyStoreForm = {
+  name: '',
+  address: '',
+  city: '',
+  state: 'MN',
+  postal: '',
+  notes: '',
+};
+
 export default function Home() {
   const [tab, setTab] = useState('stores');
   const [state, setState] = useState(null);
@@ -23,11 +32,7 @@ export default function Home() {
   const [msg, setMsg] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
 
-  const [storeForm, setStoreForm] = useState({
-    name: '',
-    address: '',
-    notes: '',
-  });
+  const [storeForm, setStoreForm] = useState(emptyStoreForm);
   const [aisleName, setAisleName] = useState('');
   const [scan, setScan] = useState({ barcode: '', name: '', aisleId: '', notes: '' });
   const [query, setQuery] = useState('');
@@ -94,9 +99,16 @@ export default function Home() {
     setBusy(true);
     setMsg('Geocoding address…');
     try {
-      const geo = await geocodeAddress(storeForm.address.trim());
+      const street = storeForm.address.trim();
+      const geo = await geocodeAddress(street, {
+        city: storeForm.city,
+        state: storeForm.state || 'MN',
+        postal: storeForm.postal,
+      });
       if (!geo) {
-        setMsg('No geocode result — try a fuller address (street, city, MN).');
+        setMsg(
+          'No geocode result. Add city (e.g. Brainerd) + MN + ZIP. Tip: County roads often need SW/NW, not just E.'
+        );
         setBusy(false);
         return;
       }
@@ -108,10 +120,17 @@ export default function Home() {
         /* optional */
       }
       const id = uid();
+      const fullAddress = [
+        street,
+        storeForm.city.trim(),
+        [storeForm.state.trim() || 'MN', storeForm.postal.trim()].filter(Boolean).join(' '),
+      ]
+        .filter(Boolean)
+        .join(', ');
       const store = {
         id,
         name: storeForm.name.trim(),
-        address: storeForm.address.trim(),
+        address: fullAddress,
         lat: geo.lat,
         lon: geo.lon,
         footprint,
@@ -123,11 +142,11 @@ export default function Home() {
         stores: [...s.stores, store],
         activeStoreId: id,
       }));
-      setStoreForm({ name: '', address: '', notes: '' });
+      setStoreForm(emptyStoreForm);
       setMsg(
         footprint
-          ? 'Store saved with OSM building footprint.'
-          : 'Store saved (point only — no nearby OSM building found).'
+          ? `Store saved near: ${geo.display}`
+          : `Store saved (point only): ${geo.display}`
       );
       setTab('layout');
     } catch (err) {
@@ -217,7 +236,9 @@ export default function Home() {
         p.scannedAt || '',
       ]),
     ];
-    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const csv = rows
+      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -228,8 +249,7 @@ export default function Home() {
   }
 
   function resetDemo() {
-    const s = sampleState();
-    setState(s);
+    setState(sampleState());
     setMsg('Demo data restored.');
   }
 
@@ -304,8 +324,8 @@ export default function Home() {
             <div className="card">
               <h2>Add store (GIS shell)</h2>
               <p className="muted">
-                Address is geocoded with OpenStreetMap Nominatim. We then request a nearby{' '}
-                <strong>building footprint</strong> from Overpass when available.
+                Rural addresses need <strong>street + city + MN</strong> (and ZIP helps). Example:{' '}
+                <em>12857 County Road 18 SW, Brainerd, MN 56401</em>
               </p>
               <form onSubmit={createStore}>
                 <div className="row">
@@ -314,17 +334,43 @@ export default function Home() {
                     <input
                       value={storeForm.name}
                       onChange={(e) => setStoreForm({ ...storeForm, name: e.target.value })}
-                      placeholder="Lakeside Market"
+                      placeholder="Corner Store / Cenex"
                       required
                     />
                   </div>
-                  <div className="field" style={{ flex: 2 }}>
-                    <label>Address</label>
+                </div>
+                <div className="field">
+                  <label>Street / county road</label>
+                  <input
+                    value={storeForm.address}
+                    onChange={(e) => setStoreForm({ ...storeForm, address: e.target.value })}
+                    placeholder="12857 County Road 18 SW"
+                    required
+                  />
+                </div>
+                <div className="row">
+                  <div className="field">
+                    <label>City</label>
                     <input
-                      value={storeForm.address}
-                      onChange={(e) => setStoreForm({ ...storeForm, address: e.target.value })}
-                      placeholder="123 Main St, Brainerd, MN"
-                      required
+                      value={storeForm.city}
+                      onChange={(e) => setStoreForm({ ...storeForm, city: e.target.value })}
+                      placeholder="Brainerd"
+                    />
+                  </div>
+                  <div className="field" style={{ maxWidth: 80 }}>
+                    <label>State</label>
+                    <input
+                      value={storeForm.state}
+                      onChange={(e) => setStoreForm({ ...storeForm, state: e.target.value })}
+                      placeholder="MN"
+                    />
+                  </div>
+                  <div className="field" style={{ maxWidth: 120 }}>
+                    <label>ZIP</label>
+                    <input
+                      value={storeForm.postal}
+                      onChange={(e) => setStoreForm({ ...storeForm, postal: e.target.value })}
+                      placeholder="56401"
                     />
                   </div>
                 </div>
@@ -454,7 +500,7 @@ export default function Home() {
               <div>
                 <strong>Walk session</strong>
                 <div className="muted">
-                  Pick aisle → scan with camera or type → optional name → save. Repeat down the store.
+                  Pick aisle → scan with camera or type → optional name → save.
                 </div>
               </div>
               <span className="badge">{activeStore?.name || 'No store'}</span>
@@ -477,7 +523,6 @@ export default function Home() {
                       </button>
                     ))}
                   </div>
-
                   <button
                     type="button"
                     className="btn btn-scan"
@@ -485,7 +530,6 @@ export default function Home() {
                   >
                     📷 Scan barcode with camera
                   </button>
-
                   <div className="row">
                     <div className="field">
                       <label>Barcode (UPC)</label>
@@ -580,8 +624,7 @@ export default function Home() {
           <div className="card">
             <h2>Outdoor map — {activeStore?.name || '—'}</h2>
             <p className="muted">
-              Pin = geocoded address. Cyan polygon = OSM building footprint when found. Indoor product
-              positions are aisle-based in this MVP (local coordinates can come next).
+              Pin = geocoded address. Cyan polygon = OSM building footprint when found.
             </p>
             <StoreMapView store={activeStore} />
           </div>
