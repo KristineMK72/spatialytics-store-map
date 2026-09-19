@@ -232,6 +232,20 @@ textarea {
   padding: 0.3rem 0.55rem;
   font-size: 0.78rem;
 }
+.btn-scan {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  background: linear-gradient(135deg, #0e7490, #155e75);
+  border-color: transparent;
+  color: #fff;
+}
+.btn-scan:hover {
+  color: #fff;
+  filter: brightness(1.08);
+}
 
 table {
   width: 100%;
@@ -312,4 +326,49 @@ th {
   gap: 0.75rem;
   align-items: center;
   justify-content: space-between;
+}
+
+/* Camera scanner overlay */
+.scanner-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.scanner-panel {
+  width: min(420px, 100%);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1rem;
+  max-height: 95vh;
+  overflow: auto;
+}
+.scanner-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+.scanner-hint {
+  margin: 0.35rem 0 0.75rem;
+  font-size: 0.8rem;
+}
+.scanner-error {
+  color: var(--red);
+  font-size: 0.85rem;
+  margin: 0.5rem 0;
+}
+.scanner-viewport {
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+  min-height: 220px;
+}
+.scanner-viewport video {
+  border-radius: 12px;
 }
