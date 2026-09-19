@@ -22,7 +22,7 @@ function FitBounds({ store }) {
       const latlngs = store.footprint.coordinates[0].map(([lon, lat]) => [lat, lon]);
       map.fitBounds(latlngs, { padding: [24, 24] });
     } else {
-      map.setView([store.lat, store.lon], 18);
+      map.setView([store.lat, store.lon], 17);
     }
   }, [store, map]);
   return null;
@@ -46,13 +46,15 @@ export default function StoreMapView({ store }) {
     <div className="map-wrap">
       <MapContainer
         center={[store.lat, store.lon]}
-        zoom={18}
-        style={{ height: '100%', width: '100%' }}
+        zoom={17}
+        style={{ height: '100%', width: '100%', background: '#0b1220' }}
         scrollWheelZoom
       >
+        {/* Free OSM tiles — no API key (Carto dark started requiring one) */}
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          maxZoom={19}
         />
         <FitBounds store={store} />
         <Marker position={[store.lat, store.lon]} icon={pinIcon}>
@@ -66,10 +68,10 @@ export default function StoreMapView({ store }) {
           <Polygon
             positions={positions}
             pathOptions={{
-              color: '#22d3ee',
-              weight: 2,
+              color: '#0891b2',
+              weight: 3,
               fillColor: '#22d3ee',
-              fillOpacity: 0.2,
+              fillOpacity: 0.25,
             }}
           />
         )}
