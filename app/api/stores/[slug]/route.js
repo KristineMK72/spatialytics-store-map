@@ -1,16 +1,22 @@
 import { NextResponse } from 'next/server';
-import { loadPublished, savePublished, slugify } from '@/lib/cloud';
+import { loadPublished, savePublished, slugify, storageMode } from '@/lib/cloud';
 
 export async function GET(_req, { params }) {
   const slug = params.slug;
   const data = await loadPublished(slug);
   if (!data) {
     return NextResponse.json(
-      { error: 'Map not found. It may have expired on this server — re-publish from Store Map.' },
+      {
+        error:
+          storageMode() === 'redis'
+            ? 'Map not found for this slug.'
+            : 'Map not found. Ephemeral storage may have cleared — re-publish from Store Map, or add Redis for durable links.',
+        storage: storageMode(),
+      },
       { status: 404 }
     );
   }
-  return NextResponse.json(data);
+  return NextResponse.json({ ...data, storage: storageMode() });
 }
 
 export async function PUT(request, { params }) {
@@ -33,11 +39,8 @@ export async function PUT(request, { params }) {
     ok: true,
     slug: record.slug,
     publishedAt: record.publishedAt,
+    storage: record.storage || storageMode(),
+    durable: (record.storage || storageMode()) === 'redis',
     url: `/s/${record.slug}`,
   });
-}
-
-export async function POST(request) {
-  // allow POST to /api/stores/[slug] same as PUT
-  return PUT(request, { params: { slug: (await request.json().catch(() => ({}))).slug } });
 }
