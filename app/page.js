@@ -107,8 +107,13 @@ export default function Home() {
       });
       if (!geo) {
         setMsg(
-          'No geocode result. Add city (e.g. Brainerd) + MN + ZIP. Tip: County roads often need SW/NW, not just E.'
+          'No geocode result. Add city (e.g. Brainerd) + MN + ZIP.'
         );
+        setBusy(false);
+        return;
+      }
+      if (geo.lat < 43.4 || geo.lat > 49.5 || geo.lon < -97.5 || geo.lon > -89.3) {
+        setMsg(`Refusing non-MN result: ${geo.display}. Check city/state/ZIP.`);
         setBusy(false);
         return;
       }
@@ -143,12 +148,62 @@ export default function Home() {
         activeStoreId: id,
       }));
       setStoreForm(emptyStoreForm);
-      setMsg(
-        footprint
-          ? `Store saved near: ${geo.display}`
-          : `Store saved (point only): ${geo.display}`
-      );
-      setTab('layout');
+      setMsg(`Store saved: ${geo.display}`);
+      setTab('map');
+    } catch (err) {
+      setMsg(String(err.message || err));
+    }
+    setBusy(false);
+  }
+
+  async function reGeocodeActive() {
+    if (!activeStore) return;
+    setBusy(true);
+    setMsg('Re-geocoding with Census (MN)…');
+    try {
+      let street = '12857 County Road 18';
+      let city = 'Brainerd';
+      let state = 'MN';
+      let postal = '56401';
+      const raw = (activeStore.address || '').trim();
+      const parts = raw.split(',').map((s) => s.trim()).filter(Boolean);
+      if (parts[0] && !/colorado|weld/i.test(raw)) {
+        street = parts[0].replace(/\bCO\b/g, '').trim() || street;
+      }
+      if (parts[1] && !/colorado|weld/i.test(parts[1])) city = parts[1];
+      const geo = await geocodeAddress(street, { city, state, postal });
+      if (!geo) {
+        setMsg('Re-geocode failed. Re-add store with Brainerd, MN 56401.');
+        setBusy(false);
+        return;
+      }
+      if (geo.lat < 43.4 || geo.lat > 49.5 || geo.lon < -97.5 || geo.lon > -89.3) {
+        setMsg(`Still non-MN: ${geo.display}`);
+        setBusy(false);
+        return;
+      }
+      let footprint = null;
+      try {
+        footprint = await fetchBuildingFootprint(geo.lat, geo.lon);
+      } catch {}
+      const newAddr = `${street}, ${city}, ${state} ${postal}`;
+      patch((s) => ({
+        ...s,
+        stores: s.stores.map((st) =>
+          st.id === activeStore.id
+            ? {
+                ...st,
+                lat: geo.lat,
+                lon: geo.lon,
+                address: newAddr,
+                footprint,
+                geocodeDisplay: geo.display,
+              }
+            : st
+        ),
+      }));
+      setMsg(`Fixed: ${geo.display}`);
+      setTab('map');
     } catch (err) {
       setMsg(String(err.message || err));
     }
@@ -324,8 +379,7 @@ export default function Home() {
             <div className="card">
               <h2>Add store (GIS shell)</h2>
               <p className="muted">
-                Rural addresses need <strong>street + city + MN</strong> (and ZIP helps). Example:{' '}
-                <em>12857 County Road 18 SW, Brainerd, MN 56401</em>
+                Use street + <strong>Brainerd</strong> + <strong>MN</strong> + <strong>56401</strong>. Geocoding uses US Census (server) so rural county roads resolve in Minnesota.
               </p>
               <form onSubmit={createStore}>
                 <div className="row">
@@ -334,7 +388,7 @@ export default function Home() {
                     <input
                       value={storeForm.name}
                       onChange={(e) => setStoreForm({ ...storeForm, name: e.target.value })}
-                      placeholder="Corner Store / Cenex"
+                      placeholder="Corner Store"
                       required
                     />
                   </div>
@@ -344,7 +398,7 @@ export default function Home() {
                   <input
                     value={storeForm.address}
                     onChange={(e) => setStoreForm({ ...storeForm, address: e.target.value })}
-                    placeholder="12857 County Road 18 SW"
+                    placeholder="12857 County Road 18"
                     required
                   />
                 </div>
@@ -430,8 +484,11 @@ export default function Home() {
               )}
               {activeStore && (
                 <div className="row" style={{ marginTop: '0.75rem' }}>
+                  <button type="button" className="btn btn-primary" onClick={reGeocodeActive} disabled={busy}>
+                    Fix location (re-geocode MN)
+                  </button>
                   <button type="button" className="btn" onClick={refreshFootprint} disabled={busy}>
-                    Re-fetch footprint for active store
+                    Re-fetch footprint
                   </button>
                 </div>
               )}
@@ -624,7 +681,8 @@ export default function Home() {
           <div className="card">
             <h2>Outdoor map — {activeStore?.name || '—'}</h2>
             <p className="muted">
-              Pin = geocoded address. Cyan polygon = OSM building footprint when found.
+              Pin = geocoded address. If you see Fort Lupton / Colorado, tap{' '}
+              <strong>Stores → Fix location (re-geocode MN)</strong>.
             </p>
             <StoreMapView store={activeStore} />
           </div>
